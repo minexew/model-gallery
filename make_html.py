@@ -40,110 +40,47 @@ with open(args.outputdir / "index.html", "wt") as f:
             num /= 1024.0
         return "%.1f%s%s" % (num, "Yi", suffix)
 
-    for title in db.titles():
-        f.write(f"<h1><a href='{title + '.html'}'>{title}</a></h1>\n")
+    # sort resources by path
+    resources_by_path = dict()
 
-        f1 = f
-        f = open(args.outputdir / (title + ".html"), "wt")
+    for res in db.resources():
+        p = Path(res["path"])
 
-        # sort resources by path
-        resources_by_path = dict()
+        try:
+            resources_by_path[p.parent].append(res)
+        except KeyError:
+            resources_by_path[p.parent] = [res]
 
-        for res in db.resources(title_name=title):
-            p = Path(res["filename"])
+    def display_cell(f, res):
+        f.write('<div class="pure-u-1-6" style="text-align: center">')
 
-            try:
-                resources_by_path[p.parent].append(res)
-            except KeyError:
-                resources_by_path[p.parent] = [res]
+        p = Path(res["path"])
 
-        f.write(
-            '<link rel="stylesheet" href="https://unpkg.com/purecss@1.0.1/build/pure-min.css" '
-            'integrity="sha384-oAOxQR6DkCoMliIh8yFnu25d7Eq/PHS21PClpwjOTeU2jRSq11vu66rf90/cZr47" '
-            'crossorigin="anonymous">'
-        )
+        full = (full_dir / f'{p.stem}.png').is_file()
+        # thumb = (thumbs_dir / f'{res["sha1"]}.png').is_file()
 
-        f.write(f"<h1>{title}</h1>")
+        if full:
+            f.write(f'<a href="full/{p.stem}.png">')
+        f.write(f'<img src="thumbs/{p.stem}.png">')
+        if full:
+            f.write("</a>")
 
-        f.write(
-            """<table class='pure-table'>
-            <tr>
-              <th></th><th>Filename</th><th>Size</th><th>MBAC files</th><th>M3G files</th><th>Date range</th><th>Filetypes</th>
-            </tr>"""
-        )
+        f.write(f'<p style="font-size: 12px">{p.name}</p>')
+        f.write("</div>\n")
 
-        for jar in db.jars(title_name=title):
-            f.write(
-                f"""
-                <tr>
-                  <td><img src="data:image/png;base64,{base64.b64encode(jar["icon"]).decode()}"></td>
-                  <td><p>{jar["filename"]}</p><p style="font-size: 10px; opacity: 0.5">{jar["sha1"]}</p></td>
-                  <td>{sizeof_fmt(jar['size'])}</td>
-                  <td>{jar['detected_mascot']}</td>
-                  <td>{jar['detected_m3g']}</td>
-                  <td>{jar['min_timestamp']}<br>{jar['max_timestamp']}</td>
-                  <td>{jar['filetypes']}</td>
-                </tr>
-                """
-            )
+    f.write("<h2>Models</h2>")
 
-        f.write("</table>")
+    for path, resources in resources_by_path.items():
+        filtered = [res for res in resources if res["type"] == ".OBJ"]
+        if not len(filtered):
+            continue
 
-        def display_cell(f, res):
-            f.write('<div class="pure-u-1-6" style="text-align: center">')
-
-            full = (full_dir / f'{res["sha1"]}.png').is_file()
-            # thumb = (thumbs_dir / f'{res["sha1"]}.png').is_file()
-
-            if full:
-                f.write(f'<a href="full/{res["sha1"]}.png">')
-            f.write(f'<img src="thumbs/{res["sha1"]}.png">')
-            if full:
-                f.write("</a>")
-
-            p = Path(res["filename"])
-            f.write(f'<p style="font-size: 12px">{p.name}</p>')
-            if res["width"] and res["height"]:
-                f.write(f'<p style="font-size: 12px">{res["width"]} x {res["height"]}</p>')
-            f.write(f'<p style="font-size: 10px; opacity: 0.5">{res["sha1"]}</p>')
-            f.write("</div>\n")
-
-        f.write("<h2>Models</h2>")
-
-        for path, resources in resources_by_path.items():
-            filtered = [res for res in resources if res["type"] == ".MBAC"]
-            if not len(filtered):
-                continue
-
-            f.write(f"<h3>{path}</h3>")
-            f.write('<div class="pure-g">\n')
-
-            for res in filtered:
-                display_cell(f, res)
-
-            f.write("</div>")
-
-        f.write("<h2>Textures</h2>")
-
+        f.write(f"<h3>{path}</h3>")
         f.write('<div class="pure-g">\n')
 
-        for res in db.resources(title_name=title):
-            if res["type"] == ".BMP":
-                display_cell(f, res)
+        for res in filtered:
+            display_cell(f, res)
 
         f.write("</div>")
-
-        f.write("<h2>Images</h2>")
-
-        f.write('<div class="pure-g">\n')
-
-        for res in db.resources(title_name=title):
-            if res["type"] == ".PNG":
-                display_cell(f, res)
-
-        f.write("</div>")
-
-        f.close()
-        f = f1
 
 db.close()
